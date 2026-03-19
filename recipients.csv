@@ -1,3 +1,2 @@
-domain,kanji_name,romaji_name,emails,status,company,sent_at
-example.com,田中 太郎,Taro Tanaka,,,"株式会社サンプル",
-amontech.io,亜門 太郎,Taro Amon,,,"株式会社アモンテック"
+domain,kanji_name,romaji_name,email,status,company,sent_at
+amontech.io,宇佐美 亜門,usami amon,"usami.amon@amontech.io, usamiamon@amontech.io, usami_amon@amontech.io, usami-amon@amontech.io, uamon@amontech.io, u.amon@amontech.io, u_amon@amontech.io, u-amon@amontech.io, usamia@amontech.io, usami.a@amontech.io, usami_a@amontech.io, usami-a@amontech.io, amon.usami@amontech.io, amonusami@amontech.io, amon_usami@amontech.io, amon-usami@amontech.io, amonu@amontech.io, amon.u@amontech.io, usami@amontech.io, amon@amontech.io, ua@amontech.io, au@amontech.io",全候補送信済み,Amon tech,2026-03-19T17:49:59
