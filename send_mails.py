@@ -60,6 +60,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--generate-only", action="store_true")
     parser.add_argument("--review-only", action="store_true")
+    parser.add_argument("--interactive", "-i", action="store_true", help="対話モードで1件ずつ送信")
     return parser.parse_args()
 
 
@@ -269,9 +270,104 @@ def send_email(sender: str, app_password: str, recipient: Recipient, subject: st
         smtp.send_message(message)
 
 
+def prompt(question: str, default: str = "") -> str:
+    if default:
+        s = input(f"{question} [{default}]: ").strip()
+        return s if s else default
+    return input(f"{question}: ").strip()
+
+
+def confirm(question: str, default: bool = False) -> bool:
+    suffix = " [Y/n]" if default else " [y/N]"
+    ans = input(f"{question}{suffix}: ").strip().lower()
+    if not ans:
+        return default
+    return ans in ("y", "yes", "はい")
+
+
+def run_interactive_mode(message_path: Path, subject: str) -> int:
+    print("\n=== メール送信ウィザード ===\n")
+
+    company = prompt("会社名を入力してください")
+    domain = prompt("宛先のドメイン（または URL）を入力してください")
+    kanji_name = prompt("宛名（漢字）を入力してください")
+    romaji_name = prompt("ローマ字名を入力してください（候補メール生成用、Enter でスキップ）")
+
+    direct_email = prompt("送信先メールアドレスを直接指定しますか？（Enter で候補から自動生成）")
+
+    candidate_name = romaji_name or kanji_name
+    if direct_email and is_valid_email(direct_email):
+        emails_to_send = [direct_email.strip()]
+    else:
+        candidates = create_email_candidates(candidate_name, domain)
+        if not candidates:
+            print("候補メールアドレスを生成できませんでした。ドメインとローマ字名を確認してください。")
+            return 1
+        if len(candidates) == 1:
+            emails_to_send = candidates
+        else:
+            print("\n候補メールアドレス:")
+            for i, addr in enumerate(candidates, 1):
+                print(f"  {i}: {addr}")
+            choice = prompt(f"番号で選択（1-{len(candidates)}）、または 0 ですべて送信", "1")
+            try:
+                n = int(choice)
+                if n == 0:
+                    emails_to_send = candidates
+                elif 1 <= n <= len(candidates):
+                    emails_to_send = [candidates[n - 1]]
+                else:
+                    emails_to_send = [candidates[0]]
+            except ValueError:
+                emails_to_send = [candidates[0]]
+
+    recipient = Recipient(
+        domain=domain,
+        kanji_name=kanji_name,
+        romaji_name=romaji_name,
+        email=", ".join(emails_to_send),
+        status="",
+        company=company,
+        sent_at="",
+        row={},
+    )
+
+    message_template = message_path.read_text(encoding="utf-8")
+    body = render_template(message_template, recipient)
+
+    print("\n--- プレビュー ---")
+    print(f"宛先: {', '.join(emails_to_send)}")
+    print(f"件名: {subject}")
+    print(f"本文:\n{body}")
+    print("---\n")
+
+    if not confirm("この内容で送信しますか？"):
+        print("キャンセルしました。")
+        return 0
+
+    load_env_file(ENV_PATH)
+    sender = os.environ.get("GMAIL_ADDRESS", "").strip()
+    app_password = os.environ.get("GMAIL_APP_PASSWORD", "").replace(" ", "").strip()
+    if not sender or not app_password:
+        print("エラー: .env に GMAIL_ADDRESS と GMAIL_APP_PASSWORD を設定してください。")
+        return 1
+
+    for email in emails_to_send:
+        recipient.email = email
+        send_email(sender, app_password, recipient, subject, body)
+        print(f"送信完了: {email}")
+
+    print("\n送信が完了しました。")
+    return 0
+
+
 def main() -> int:
     load_env_file(ENV_PATH)
     args = parse_args()
+
+    if args.interactive:
+        message_path = Path(args.message)
+        return run_interactive_mode(message_path, args.subject)
 
     csv_path = Path(args.csv)
     message_path = Path(args.message)
